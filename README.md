@@ -148,8 +148,8 @@ MIT
 
 ## 👨‍💻 Autor
 
-Tu Nombre
+César Ruiz
 
 ---
 
-**¡La API está lista para usar!** 🎉
+**¡La API está lista para usar!** 
