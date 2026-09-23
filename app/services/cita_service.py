@@ -1,4 +1,5 @@
 """Service for booking, updating and cancelling appointments."""
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.cita import Cita, EstadoCita
@@ -74,7 +75,12 @@ class CitaService:
         )
         db.add(cita)
         slot.estado = SlotEstado.RESERVADO
-        db.flush()
+
+        try:
+            db.flush()
+        except IntegrityError as exc:
+            db.rollback()
+            raise ValueError("El horario seleccionado ya no está disponible") from exc
 
         historial = HistorialCita(
             id_cita=cita.id_cita,
