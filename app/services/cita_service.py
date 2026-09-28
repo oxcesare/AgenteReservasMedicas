@@ -1,4 +1,5 @@
 """Service for booking, updating and cancelling appointments."""
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.cita import Cita, EstadoCita
@@ -74,7 +75,12 @@ class CitaService:
         )
         db.add(cita)
         slot.estado = SlotEstado.RESERVADO
-        db.flush()
+
+        try:
+            db.flush()
+        except IntegrityError as exc:
+            db.rollback()
+            raise ValueError("El horario seleccionado ya no está disponible") from exc
 
         historial = HistorialCita(
             id_cita=cita.id_cita,
@@ -196,3 +202,22 @@ class CitaService:
             raise RuntimeError(f"No se pudo eliminar la cita: {exc}") from exc
 
         return True
+
+    @staticmethod
+    def get_citas_programadas_por_telefono(db: Session, telefono_whatsapp: str) -> list[CitaResponse]:
+
+        """Devuelve las citas PROGRAMADA de un paciente, buscando por su teléfono."""
+        resultados = (
+            db.query(Cita, SlotDisponibilidad, Paciente)
+            .join(SlotDisponibilidad, Cita.id_slot == SlotDisponibilidad.id_slot)
+            .join(Paciente, Cita.id_paciente == Paciente.id_paciente)
+            .filter(Paciente.telefono_whatsapp == telefono_whatsapp)
+            .filter(Cita.estado_actual == EstadoCita.PROGRAMADA)
+            .order_by(SlotDisponibilidad.fecha_hora_inicio.asc())
+            .all()
+        )
+
+        return [
+            CitaService._build_response(cita, slot, paciente)
+            for cita, slot, paciente in resultados
+        ]

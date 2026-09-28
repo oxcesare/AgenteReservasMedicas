@@ -46,3 +46,8 @@ def delete_cita(id_cita: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+@router.get("/paciente/{telefono_whatsapp}", response_model=list[CitaResponse])
+def get_citas_por_paciente(telefono_whatsapp: str, db: Session = Depends(get_db)):
+    """Lista las citas PROGRAMADA de un paciente por su número de WhatsApp."""
+    return CitaService.get_citas_programadas_por_telefono(db, telefono_whatsapp)

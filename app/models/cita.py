@@ -22,7 +22,7 @@ class Cita(Base):
     __tablename__ = "citas"
 
     id_cita = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
-    id_slot = Column(BigInteger, ForeignKey("slots_disponibilidad.id_slot"), unique=True, nullable=False)
+    id_slot = Column(BigInteger, ForeignKey("slots_disponibilidad.id_slot"), nullable=False, index=True)
     id_paciente = Column(Integer, ForeignKey("pacientes.id_paciente"), nullable=False, index=True)
     estado_actual = Column(Enum(EstadoCita), nullable=False, default=EstadoCita.PROGRAMADA)
     notas_paciente = Column(String(255), nullable=True)
