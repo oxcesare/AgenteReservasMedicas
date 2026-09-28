@@ -8,7 +8,7 @@ from langgraph.types import interrupt
 
 from .state import CitaState
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8080"
 DOCTOR_ID = 1
 
 
@@ -48,7 +48,26 @@ def saludar(state: CitaState) -> dict:
 
 
 def pedir_fecha(state: CitaState) -> dict:
-    fecha = interrupt("Me podrías dar la fecha para la cual deseas tu cita")
+    if state.get("fecha_entendida") is False:
+        pregunta = (
+            "No pude entender la fecha que me indicaste. ¿Podrías escribirla de otra forma? "
+            "Por ejemplo: 'miércoles 23 de septiembre' o '23/09/2026'. "
+            "O responde 'no' si prefieres terminar"
+        )
+    elif state.get("slots_disponibles") == []:
+        pregunta = (
+            "Lo siento, no encontré horarios disponibles para esa fecha. "
+            "¿Te gustaría consultar otra? Escríbeme la nueva fecha, "
+            "o responde 'no' si prefieres terminar"
+        )
+    else:
+        pregunta = "Me podrías dar la fecha para la cual deseas tu cita"
+
+    fecha = interrupt(pregunta)
+
+    if fecha.strip().lower() in ("no", "cancelar", "salir"):
+        print("Agente: Entendido, hasta pronto")
+        return {"fecha_solicitada": None}
     return {"fecha_solicitada": fecha}
 
 
@@ -56,7 +75,7 @@ def consultar_disponibilidad(state: CitaState) -> dict:
     fecha = parsear_fecha(state["fecha_solicitada"])
 
     if fecha is None:
-        return {"horarios_disponibles": [], "slots_disponibles": []}
+        return {"horarios_disponibles": [], "slots_disponibles": [], "fecha_entendida": False}
 
     desde = datetime.combine(fecha.date(), time.min).isoformat()
     hasta = datetime.combine(fecha.date(), time.max.replace(microsecond=0)).isoformat()
@@ -85,7 +104,8 @@ def consultar_disponibilidad(state: CitaState) -> dict:
 
     return {
         "horarios_disponibles": horarios_legibles,
-        "slots_disponibles": slots_formateados
+        "slots_disponibles": slots_formateados,
+        "fecha_entendida": True
     }
 
 
@@ -158,4 +178,88 @@ def confirmar_cita(state: CitaState) -> dict:
         print(f"Agente: Cita confirmada ({state['horario_elegido']}). Hasta pronto")
     else:
         print(f"Agente: No pude confirmar tu cita. Motivo: {state.get('error_reserva')}")
+    return {}
+
+
+# ---------------------------------------------------------------------------
+# Menú, consulta de citas y reagendado
+# ---------------------------------------------------------------------------
+OPCIONES_MENU = {"1": "reservar", "2": "consultar", "3": "reagendar"}
+
+
+def menu_principal(state: CitaState) -> dict:
+    respuesta = interrupt(
+        "Buena tarde ¿Qué deseas hacer?\n\n"
+        "1. Reservar una cita\n"
+        "2. Consultar mis citas\n"
+        "3. Reagendar una cita\n\n"
+        "Responde con el número de la opción"
+    )
+    opcion = OPCIONES_MENU.get(respuesta.strip())
+    if opcion is None:
+        print("Agente: No entendí tu opción. Hasta pronto")
+    return {"opcion": opcion}
+
+
+def consultar_mis_citas(state: CitaState) -> dict:
+    telefono = PACIENTE_DUMMY["telefono_whatsapp"]
+
+    resp = requests.get(f"{BASE_URL}/api/citas/paciente/{telefono}")
+    resp.raise_for_status()
+
+    citas = []
+    for c in resp.json():
+        inicio = datetime.fromisoformat(c["slot"]["fecha_hora_inicio"])
+        fin = datetime.fromisoformat(c["slot"]["fecha_hora_fin"])
+        texto = f"{inicio.strftime('%d/%m/%Y')} de {inicio.strftime('%I:%M %p')} a {fin.strftime('%I:%M %p')}"
+        citas.append({"id_cita": c["id_cita"], "texto": texto})
+
+    return {"citas_paciente": citas}
+
+
+def mostrar_citas(state: CitaState) -> dict:
+    citas = state.get("citas_paciente")
+    if not citas:
+        print("Agente: No tienes citas programadas")
+    else:
+        lista = "\n".join(f"- {c['texto']}" for c in citas)
+        print(f"Agente: Estas son tus citas programadas\n\n{lista}")
+    return {}
+
+
+def pedir_cita(state: CitaState) -> dict:
+    citas = state["citas_paciente"]
+    intentos = state.get("intentos_cita", 0)
+
+    lista = "\n".join(f"{i + 1}. {c['texto']}" for i, c in enumerate(citas))
+
+    if intentos == 0:
+        pregunta = f"Estas son tus citas programadas\n\n{lista}\n\nResponde con el número de la cita que deseas reagendar"
+    else:
+        pregunta = f"No entendí tu respuesta. Elige un número válido:\n\n{lista}"
+
+    respuesta = interrupt(pregunta)
+    respuesta_limpia = respuesta.strip()
+
+    cita_match = None
+    if respuesta_limpia.isdigit():
+        indice = int(respuesta_limpia) - 1
+        if 0 <= indice < len(citas):
+            cita_match = citas[indice]
+
+    return {
+        "cita_elegida_id": cita_match["id_cita"] if cita_match else None,
+        "intentos_cita": intentos + 1
+    }
+
+
+def reagendar_cita(state: CitaState) -> dict:
+    payload = {"id_slot": state["slot_elegido_id"]}
+
+    try:
+        resp = requests.put(f"{BASE_URL}/api/citas/{state['cita_elegida_id']}", json=payload)
+        resp.raise_for_status()
+        print(f"Agente: Cita reagendada ({state['horario_elegido']}). Hasta pronto")
+    except requests.exceptions.RequestException as e:
+        print(f"Agente: No pude reagendar tu cita. Motivo: {e}")
     return {}

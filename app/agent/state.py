@@ -10,3 +10,8 @@ class CitaState(TypedDict):
     intentos_horario: int
     reserva_exitosa: Optional[bool]
     error_reserva: Optional[str]
+    opcion: Optional[str]
+    citas_paciente: Optional[list[dict]]
+    cita_elegida_id: Optional[int]
+    intentos_cita: int
+    fecha_entendida: Optional[bool]
