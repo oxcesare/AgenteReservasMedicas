@@ -7,7 +7,8 @@ from .state import CitaState
 from .nodes import (
     menu_principal, consultar_mis_citas, mostrar_citas, pedir_cita,
     pedir_fecha, consultar_disponibilidad, pedir_horario,
-    reservar_cita, reagendar_cita, confirmar_cita
+    reservar_cita, reagendar_cita, confirmar_cancelacion, cancelar_cita,
+    confirmar_cita
 )
 
 MAX_INTENTOS = 3
@@ -27,20 +28,20 @@ def route_despues_menu(state: CitaState) -> str:
     opcion = state.get("opcion")
     if opcion == "reservar":
         return "pedir_fecha"
-    if opcion in ("consultar", "reagendar"):
+    if opcion in ("consultar", "reagendar", "cancelar"):
         return "consultar_mis_citas"
     return END  # opción inválida
 
 
 def route_despues_consulta(state: CitaState) -> str:
-    if state.get("opcion") == "reagendar" and state.get("citas_paciente"):
+    if state.get("opcion") in ("reagendar", "cancelar") and state.get("citas_paciente"):
         return "pedir_cita"
-    return "mostrar_citas"  # consultar, o reagendar sin citas
+    return "mostrar_citas"  # consultar, o reagendar/cancelar sin citas
 
 
 def route_despues_cita(state: CitaState) -> str:
     if state.get("cita_elegida_id") is not None:
-        return "pedir_fecha"
+        return "confirmar_cancelacion" if state.get("opcion") == "cancelar" else "pedir_fecha"
     if state.get("intentos_cita", 0) >= MAX_INTENTOS:
         return END  # se acabaron los intentos
     return "pedir_cita"  # ciclo: vuelve a preguntar
@@ -50,6 +51,10 @@ def route_despues_fecha(state: CitaState) -> str:
     if state.get("fecha_solicitada") is None:
         return END  # el usuario decidió no consultar otra fecha
     return "consultar_disponibilidad"
+
+
+def route_despues_confirmacion_cancelar(state: CitaState) -> str:
+    return "cancelar_cita" if state.get("confirmacion_cancelar") else END
 
 
 def construir_grafo():
@@ -63,6 +68,8 @@ def construir_grafo():
     flujo.add_node("pedir_horario", pedir_horario)
     flujo.add_node("reservar_cita", reservar_cita)
     flujo.add_node("reagendar_cita", reagendar_cita)
+    flujo.add_node("confirmar_cancelacion", confirmar_cancelacion)
+    flujo.add_node("cancelar_cita", cancelar_cita)
     flujo.add_node("confirmar_cita", confirmar_cita)
 
     flujo.set_entry_point("menu_principal")
@@ -76,5 +83,7 @@ def construir_grafo():
     flujo.add_edge("confirmar_cita", END)
     flujo.add_edge("mostrar_citas", END)
     flujo.add_edge("reagendar_cita", END)
+    flujo.add_conditional_edges("confirmar_cancelacion", route_despues_confirmacion_cancelar)
+    flujo.add_edge("cancelar_cita", END)
 
     return flujo.compile(checkpointer=InMemorySaver())

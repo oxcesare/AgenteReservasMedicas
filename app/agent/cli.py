@@ -3,7 +3,7 @@ El "main" que ejecutas en consola
 """
 
 from langgraph.types import Command
-from agent.graph import construir_grafo
+from .graph import construir_grafo
 
 def main():
     grafo = construir_grafo()

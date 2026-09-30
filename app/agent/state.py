@@ -15,3 +15,4 @@ class CitaState(TypedDict):
     cita_elegida_id: Optional[int]
     intentos_cita: int
     fecha_entendida: Optional[bool]
+    confirmacion_cancelar: Optional[bool]

@@ -2,24 +2,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.api import appointments, availability, citas
+from app.api import appointments, availability, citas, whatsapp
 from app.database import Base, engine
-from fastapi.middleware.cors import CORSMiddleware
-
-app = FastAPI()
-
 
 # Create tables for local development if they don't exist yet.
 Base.metadata.create_all(bind=engine)
 
-
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:4200"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 # Initialize FastAPI app
 app = FastAPI(
     title=settings.API_TITLE,
@@ -41,6 +29,7 @@ app.add_middleware(
 app.include_router(appointments.router)
 app.include_router(availability.router)
 app.include_router(citas.router)
+app.include_router(whatsapp.router)
 
 
 @app.get("/")

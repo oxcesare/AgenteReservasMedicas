@@ -7,8 +7,10 @@ from datetime import datetime, time
 from langgraph.types import interrupt
 
 from .state import CitaState
+from ..config import settings
 
-BASE_URL = "http://localhost:8080"
+BASE_URL = settings.BASE_URL
+
 DOCTOR_ID = 1
 
 
@@ -146,10 +148,6 @@ def pedir_horario(state: CitaState) -> dict:
         }
 
 
-def confirmar_cita(state: CitaState) -> dict:
-    print(f"Agente: Cita confirmada ({state['horario_elegido']}). Hasta pronto")
-    return {}
-
 PACIENTE_DUMMY = {
     "nombre": "César",
     "apellido": "Ricardo",
@@ -184,7 +182,7 @@ def confirmar_cita(state: CitaState) -> dict:
 # ---------------------------------------------------------------------------
 # Menú, consulta de citas y reagendado
 # ---------------------------------------------------------------------------
-OPCIONES_MENU = {"1": "reservar", "2": "consultar", "3": "reagendar"}
+OPCIONES_MENU = {"1": "reservar", "2": "consultar", "3": "reagendar", "4": "cancelar"}
 
 
 def menu_principal(state: CitaState) -> dict:
@@ -192,7 +190,8 @@ def menu_principal(state: CitaState) -> dict:
         "Buena tarde ¿Qué deseas hacer?\n\n"
         "1. Reservar una cita\n"
         "2. Consultar mis citas\n"
-        "3. Reagendar una cita\n\n"
+        "3. Reagendar una cita\n"
+        "4. Cancelar una cita\n\n"
         "Responde con el número de la opción"
     )
     opcion = OPCIONES_MENU.get(respuesta.strip())
@@ -230,11 +229,12 @@ def mostrar_citas(state: CitaState) -> dict:
 def pedir_cita(state: CitaState) -> dict:
     citas = state["citas_paciente"]
     intentos = state.get("intentos_cita", 0)
+    accion = "cancelar" if state.get("opcion") == "cancelar" else "reagendar"
 
     lista = "\n".join(f"{i + 1}. {c['texto']}" for i, c in enumerate(citas))
 
     if intentos == 0:
-        pregunta = f"Estas son tus citas programadas\n\n{lista}\n\nResponde con el número de la cita que deseas reagendar"
+        pregunta = f"Estas son tus citas programadas\n\n{lista}\n\nResponde con el número de la cita que deseas {accion}"
     else:
         pregunta = f"No entendí tu respuesta. Elige un número válido:\n\n{lista}"
 
@@ -262,4 +262,29 @@ def reagendar_cita(state: CitaState) -> dict:
         print(f"Agente: Cita reagendada ({state['horario_elegido']}). Hasta pronto")
     except requests.exceptions.RequestException as e:
         print(f"Agente: No pude reagendar tu cita. Motivo: {e}")
+    return {}
+
+
+def confirmar_cancelacion(state: CitaState) -> dict:
+    cita = next(
+        c for c in state["citas_paciente"] if c["id_cita"] == state["cita_elegida_id"]
+    )
+    respuesta = interrupt(
+        f"¿Seguro que deseas cancelar la cita del {cita['texto']}? (sí/no)"
+    )
+    confirmado = respuesta.strip().lower() in ("si", "sí")
+
+    if not confirmado:
+        print("Agente: De acuerdo, tu cita no fue cancelada. Hasta pronto")
+
+    return {"confirmacion_cancelar": confirmado}
+
+
+def cancelar_cita(state: CitaState) -> dict:
+    try:
+        resp = requests.delete(f"{BASE_URL}/api/citas/{state['cita_elegida_id']}")
+        resp.raise_for_status()
+        print("Agente: Tu cita ha sido cancelada. Hasta pronto")
+    except requests.exceptions.RequestException as e:
+        print(f"Agente: No pude cancelar tu cita. Motivo: {e}")
     return {}

@@ -13,6 +13,8 @@ load_dotenv()
 class Settings(BaseSettings):
     """Application configuration settings"""
 
+    BASE_URL: str = "http://localhost:8000"
+
     # API Configuration
     API_TITLE: str = "Medical Appointments API"
     API_VERSION: str = "1.0.0"
@@ -29,6 +31,11 @@ class Settings(BaseSettings):
 
     # CORS Configuration
     CORS_ORIGINS: list[str] = Field(default_factory=lambda: ["*"])
+
+    # WhatsApp Configuration
+    WHATSAPP_VERIFY_TOKEN: str = ""
+    WHATSAPP_ACCESS_TOKEN: str = ""
+    WHATSAPP_PHONE_NUMBER_ID: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 

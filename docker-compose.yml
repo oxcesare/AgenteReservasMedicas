@@ -1,0 +1,19 @@
+services:
+  api:
+    build: .
+    container_name: citas_api
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=mi_mysql_db   # nombre del contenedor, no 127.0.0.1
+      - DB_PORT=3306
+      - DB_NAME=reserva_citas_db
+      - DB_USER=root
+      - DB_PASS=juJU87
+    networks:
+      - citas_network
+
+networks:
+  citas_network:
+    external: true
+    name: citas_network
