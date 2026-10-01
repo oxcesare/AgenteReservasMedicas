@@ -68,8 +68,9 @@ def pedir_fecha(state: CitaState) -> dict:
     fecha = interrupt(pregunta)
 
     if fecha.strip().lower() in ("no", "cancelar", "salir"):
-        print("Agente: Entendido, hasta pronto")
-        return {"fecha_solicitada": None}
+        texto = "Entendido, hasta pronto"
+        print(f"Agente: {texto}")
+        return {"fecha_solicitada": None, "respuesta_final": texto}
     return {"fecha_solicitada": fecha}
 
 
@@ -84,7 +85,8 @@ def consultar_disponibilidad(state: CitaState) -> dict:
 
     resp = requests.get(
         f"{BASE_URL}/api/doctors/{DOCTOR_ID}/availability",
-        params={"desde": desde, "hasta": hasta}
+        params={"desde": desde, "hasta": hasta},
+        timeout=10
     )
     resp.raise_for_status()
     data = resp.json()
@@ -164,7 +166,7 @@ def reservar_cita(state: CitaState) -> dict:
     }
 
     try:
-        resp = requests.post(f"{BASE_URL}/api/citas", json=payload)
+        resp = requests.post(f"{BASE_URL}/api/citas", json=payload, timeout=10)
         resp.raise_for_status()
         return {"reserva_exitosa": True, "error_reserva": None}
     except requests.exceptions.RequestException as e:
@@ -173,10 +175,11 @@ def reservar_cita(state: CitaState) -> dict:
 
 def confirmar_cita(state: CitaState) -> dict:
     if state.get("reserva_exitosa"):
-        print(f"Agente: Cita confirmada ({state['horario_elegido']}). Hasta pronto")
+        texto = f"Cita confirmada ({state['horario_elegido']}). Hasta pronto"
     else:
-        print(f"Agente: No pude confirmar tu cita. Motivo: {state.get('error_reserva')}")
-    return {}
+        texto = f"No pude confirmar tu cita. Motivo: {state.get('error_reserva')}"
+    print(f"Agente: {texto}")
+    return {"respuesta_final": texto}
 
 
 # ---------------------------------------------------------------------------
@@ -196,14 +199,16 @@ def menu_principal(state: CitaState) -> dict:
     )
     opcion = OPCIONES_MENU.get(respuesta.strip())
     if opcion is None:
-        print("Agente: No entendí tu opción. Hasta pronto")
+        texto = "No entendí tu opción. Hasta pronto"
+        print(f"Agente: {texto}")
+        return {"opcion": opcion, "respuesta_final": texto}
     return {"opcion": opcion}
 
 
 def consultar_mis_citas(state: CitaState) -> dict:
     telefono = PACIENTE_DUMMY["telefono_whatsapp"]
 
-    resp = requests.get(f"{BASE_URL}/api/citas/paciente/{telefono}")
+    resp = requests.get(f"{BASE_URL}/api/citas/paciente/{telefono}", timeout=30)
     resp.raise_for_status()
 
     citas = []
@@ -219,22 +224,22 @@ def consultar_mis_citas(state: CitaState) -> dict:
 def mostrar_citas(state: CitaState) -> dict:
     citas = state.get("citas_paciente")
     if not citas:
-        print("Agente: No tienes citas programadas")
+        texto = "No tienes citas programadas"
     else:
         lista = "\n".join(f"- {c['texto']}" for c in citas)
-        print(f"Agente: Estas son tus citas programadas\n\n{lista}")
-    return {}
+        texto = f"Estas son tus citas programadas\n\n{lista}"
+    print(f"Agente: {texto}")
+    return {"respuesta_final": texto}
 
 
 def pedir_cita(state: CitaState) -> dict:
     citas = state["citas_paciente"]
     intentos = state.get("intentos_cita", 0)
-    accion = "cancelar" if state.get("opcion") == "cancelar" else "reagendar"
 
     lista = "\n".join(f"{i + 1}. {c['texto']}" for i, c in enumerate(citas))
 
     if intentos == 0:
-        pregunta = f"Estas son tus citas programadas\n\n{lista}\n\nResponde con el número de la cita que deseas {accion}"
+        pregunta = f"Estas son tus citas programadas\n\n{lista}\n\nResponde con el número de la cita que deseas reagendar o cancelar"
     else:
         pregunta = f"No entendí tu respuesta. Elige un número válido:\n\n{lista}"
 
@@ -257,14 +262,18 @@ def reagendar_cita(state: CitaState) -> dict:
     payload = {"id_slot": state["slot_elegido_id"]}
 
     try:
-        resp = requests.put(f"{BASE_URL}/api/citas/{state['cita_elegida_id']}", json=payload)
+        resp = requests.put(f"{BASE_URL}/api/citas/{state['cita_elegida_id']}", json=payload, timeout=10)
         resp.raise_for_status()
-        print(f"Agente: Cita reagendada ({state['horario_elegido']}). Hasta pronto")
+        texto = f"Cita reagendada ({state['horario_elegido']}). Hasta pronto"
     except requests.exceptions.RequestException as e:
-        print(f"Agente: No pude reagendar tu cita. Motivo: {e}")
-    return {}
+        texto = f"No pude reagendar tu cita. Motivo: {e}"
+    print(f"Agente: {texto}")
+    return {"respuesta_final": texto}
 
 
+# ---------------------------------------------------------------------------
+# Cancelación de citas
+# ---------------------------------------------------------------------------
 def confirmar_cancelacion(state: CitaState) -> dict:
     cita = next(
         c for c in state["citas_paciente"] if c["id_cita"] == state["cita_elegida_id"]
@@ -275,16 +284,19 @@ def confirmar_cancelacion(state: CitaState) -> dict:
     confirmado = respuesta.strip().lower() in ("si", "sí")
 
     if not confirmado:
-        print("Agente: De acuerdo, tu cita no fue cancelada. Hasta pronto")
+        texto = "De acuerdo, tu cita no fue cancelada. Hasta pronto"
+        print(f"Agente: {texto}")
+        return {"confirmacion_cancelar": confirmado, "respuesta_final": texto}
 
     return {"confirmacion_cancelar": confirmado}
 
 
 def cancelar_cita(state: CitaState) -> dict:
     try:
-        resp = requests.delete(f"{BASE_URL}/api/citas/{state['cita_elegida_id']}")
+        resp = requests.delete(f"{BASE_URL}/api/citas/{state['cita_elegida_id']}", timeout=10)
         resp.raise_for_status()
-        print("Agente: Tu cita ha sido cancelada. Hasta pronto")
+        texto = "Tu cita fue cancelada correctamente. Hasta pronto"
     except requests.exceptions.RequestException as e:
-        print(f"Agente: No pude cancelar tu cita. Motivo: {e}")
-    return {}
+        texto = f"No pude cancelar tu cita. Motivo: {e}"
+    print(f"Agente: {texto}")
+    return {"respuesta_final": texto}

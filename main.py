@@ -2,8 +2,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.api import appointments, availability, citas, whatsapp
 from app.database import Base, engine
+from app.api import appointments, availability, citas, whatsapp
 
 # Create tables for local development if they don't exist yet.
 Base.metadata.create_all(bind=engine)
